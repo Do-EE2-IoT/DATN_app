@@ -1,3 +1,4 @@
+// Nhập các thư viện cần thiết
 import {useCallback, useEffect, useState} from 'react';
 import {Alert, PermissionsAndroid, Platform} from 'react-native';
 import {
@@ -13,256 +14,256 @@ import {
   UUID,
 } from 'react-native-ble-plx';
 
+// Định nghĩa kiểu callback cho quyền truy cập
 type PermissionCallback = (result: boolean) => void;
 
+// Khởi tạo đối tượng BLEManager
 const BLEManager = new BleManager();
 
+// Định nghĩa interface cho API Bluetooth Low Energy
 interface BluetoothLowEnergyApi {
-  isScanning: boolean; // Flag indicating if scanning is in progress
-  requestPermissions(callback: PermissionCallback): Promise<void>; // Request permission to scan BLE devices
-  scanForDevices(): void; // Start scanning for BLE devices
-  stopScanning(): void; // Stop scanning for BLE devices
-  allDevices: AllDeviceType[]; // Array of all discovered BLE devices
-  connectToDevice(device: Device): Promise<void>; // Connect to a BLE device
-  disconnectToDevice(device: Device): Promise<void>; // Disconnect from a BLE device
-  connectedDevice: Device | null; // Currently connected BLE device
-  connectedDeviceService: Service[]; // Array of services of the currently connected BLE device
-  lastServiceCharacteristics: Characteristic[]; // Array of characteristics of last service
-  dataCharacteristics: DataCharacteristicsType[]; // Sensor data
-  sendCommand(command: string, index: number): Promise<void>; // Send a command to a connected BLE device
+  isScanning: boolean; // Cờ cho biết có đang quét hay không
+  requestPermissions(callback: PermissionCallback): Promise<void>; // Yêu cầu quyền truy cập để quét thiết bị BLE
+  scanForDevices(): void; // Bắt đầu quét thiết bị BLE
+  stopScanning(): void; // Dừng quét thiết bị BLE
+  allDevices: AllDeviceType[]; // Mảng chứa tất cả các thiết bị BLE đã phát hiện
+  connectToDevice(device: Device): Promise<void>; // Kết nối đến một thiết bị BLE
+  disconnectToDevice(device: Device): Promise<void>; // Ngắt kết nối từ một thiết bị BLE
+  connectedDevice: Device | null; // Thiết bị BLE hiện đang kết nối
+  connectedDeviceService: Service[]; // Mảng chứa các dịch vụ của thiết bị BLE hiện đang kết nối
+  lastServiceCharacteristics: Characteristic[]; // Mảng chứa các đặc tính của dịch vụ cuối cùng
+  dataCharacteristics: DataCharacteristicsType[]; // Dữ liệu cảm biến
+  sendCommand(command: string, index: number): Promise<void>; // Gửi lệnh đến một thiết bị BLE đã kết nối
 }
 
+// Định nghĩa kiểu dữ liệu cho các đặc tính cảm biến
 export interface DataCharacteristicsType {
-  MAC: string | null;
-  spo2: string | null;
-  heart_rate: string | null;
-  temperature: string | null;
-  fall: string | null;
-  diastolic: string | null;
-  systolic: string | null;
-  battery_percent: string | null;
-  time: number | null;
+  MAC: string; // Địa chỉ MAC của thiết bị
+  spo2: string | null; // Mức SpO2
+  heart_rate: string | null; // Nhịp tim
+  temperature: string | null; // Nhiệt độ
+  fall: string | null; // Tình trạng ngã
+  battery_percent: string | null; // Phần trăm pin
+  time: number | null; // Thời gian
 }
 
+// Định nghĩa kiểu dữ liệu cho tất cả các thiết bị
 export interface AllDeviceType {
-  dev: Device;
-  time: number;
+  dev: Device; // Thiết bị BLE
+  time: number; // Thời gian phát hiện
 }
 
-// learn useState, useEffect, useCallback, useMemo
+// Hàm chính sử dụng hook để quản lý Bluetooth Low Energy
 export default function useBLE(): BluetoothLowEnergyApi {
-  const [isScanning, setIsScanning] = useState(false);
-  const [allDevices, setAllDevices] = useState<AllDeviceType[]>([]);
-  const [connectedDevice, setConnectedDevice] = useState<Device | null>(null);
-  const [connectedDeviceService, setConnectedDeviceService] = useState<
-    Service[]
-  >([]);
-  const [lastServiceCharacteristics, setLastServiceCharacteristics] = useState<
-    Characteristic[]
-  >([]);
-  const [dataCharacteristics, setDataCharacteristics] = useState<
-    DataCharacteristicsType[]
-  >([]);
-  const [monitoringID, setMonitoringID] = useState<Subscription | null>(null);
-  const [updateTime, setUpdateTime] = useState<number>(new Date().getTime());
+  const [isScanning, setIsScanning] = useState(false); // Trạng thái quét
+  const [allDevices, setAllDevices] = useState<AllDeviceType[]>([]); // Danh sách tất cả các thiết bị
+  const [connectedDevice, setConnectedDevice] = useState<Device | null>(null); // Thiết bị đang kết nối
+  const [connectedDeviceService, setConnectedDeviceService] = useState<Service[]>([]); // Dịch vụ của thiết bị đang kết nối
+  const [lastServiceCharacteristics, setLastServiceCharacteristics] = useState<Characteristic[]>([]); // Đặc tính của dịch vụ cuối cùng
+  const [dataCharacteristics, setDataCharacteristics] = useState<DataCharacteristicsType[]>([]); // Dữ liệu cảm biến
+  const [monitoringID, setMonitoringID] = useState<Subscription | null>(null); // ID theo dõi
+  const [updateTime, setUpdateTime] = useState<number>(new Date().getTime()); // Thời gian cập nhật
 
+  // Hàm yêu cầu quyền truy cập
   const requestPermissions = async (callback: PermissionCallback) => {
-    if (Platform.OS === 'android') {
+    if (Platform.OS === 'android') { // Kiểm tra nếu đang chạy trên Android
       const grantedStatus = await PermissionsAndroid.request(
-        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION, // Yêu cầu quyền truy cập vị trí
         {
-          title: 'Location Permission',
-          message: 'Bluetooth Low Energy Needs Location Permission',
-          buttonNegative: 'Cancel',
-          buttonPositive: 'Ok',
-          buttonNeutral: 'Maybe Later',
+          title: 'Location Permission', // Tiêu đề thông báo
+          message: 'Bluetooth Low Energy Needs Location Permission', // Thông báo yêu cầu quyền
+          buttonNegative: 'Cancel', // Nút hủy
+          buttonPositive: 'Ok', // Nút đồng ý
+          buttonNeutral: 'Maybe Later', // Nút có thể sau
         },
       );
-      callback(grantedStatus === PermissionsAndroid.RESULTS.GRANTED);
+      callback(grantedStatus === PermissionsAndroid.RESULTS.GRANTED); // Gọi callback với kết quả
     } else {
-      callback(true);
+      callback(true); // Nếu không phải Android, cho phép mặc định
     }
   };
 
+  // Hàm kiểm tra thiết bị trùng lặp
   const isDuplicateDevice = (devices: AllDeviceType[], nextDevice: Device) =>
     devices.findIndex(device => nextDevice.id === device.dev.id) > -1;
+
+  // Hàm bắt đầu quét thiết bị
   const scanForDevices = () => {
-    console.log('[device scan started]');
+    console.log('[device scan started]'); // Log thông báo bắt đầu quét
     BLEManager.startDeviceScan(null, null, (error, device) => {
-      if (error) {
-        console.log('[device scan error]', JSON.stringify(error));
-        stopScanning();
+      if (error) { // Kiểm tra lỗi
+        console.log('[device scan error]', JSON.stringify(error)); // Log lỗi quét
+        stopScanning(); // Dừng quét
         Alert.alert(
-          'ERROR',
-          `Please turn on your location and Bluetooth close the app and try again.`,
+          'ERROR', // Tiêu đề thông báo lỗi
+          `Please turn on your location and Bluetooth close the app and try again.`, // Thông báo lỗi
           [
             {
-              text: 'OK',
+              text: 'OK', // Nút OK
               onPress: () => {
-                scanForDevices();
+                scanForDevices(); // Bắt đầu quét lại
               },
             },
           ],
         );
       } else {
-        setIsScanning(true);
-        if (device && device.name && device.name.includes('Proxy')) {
+        setIsScanning(true); // Đặt trạng thái quét là true
+        if (device && device.name && device.name.includes('Proxy')) { // Kiểm tra nếu thiết bị hợp lệ
           setAllDevices(prevState => {
-            if (isDuplicateDevice(prevState, device)) {
-              let updatedDevices = prevState;
-              let scanned = {dev: device, time: new Date().getTime()};
-              updatedDevices[
-                prevState.findIndex(dev => device.id === dev.dev.id)
-              ] = scanned;
-              return [...updatedDevices];
+            if (isDuplicateDevice(prevState, device)) { // Nếu thiết bị đã tồn tại
+              let updatedDevices = prevState; // Cập nhật danh sách thiết bị
+              let scanned = {dev: device, time: new Date().getTime()}; // Thiết bị mới quét
+              updatedDevices[prevState.findIndex(dev => device.id === dev.dev.id)] = scanned; // Cập nhật thiết bị
+              return [...updatedDevices]; // Trả về danh sách thiết bị đã cập nhật
             }
-            let scanned = {dev: device, time: new Date().getTime()};
-            return [...prevState, scanned];
+            let scanned = {dev: device, time: new Date().getTime()}; // Thiết bị mới quét
+            return [...prevState, scanned]; // Thêm thiết bị mới vào danh sách
           });
         }
       }
     });
   };
 
+  // Hàm kết nối đến thiết bị
   const connectToDevice = async (device: Device) => {
     try {
-      if (!device.name) {
-        return;
+      if (!device.name) { // Kiểm tra nếu thiết bị không có tên
+        return; // Thoát hàm
       }
       const connectOptions: ConnectionOptions = {
-        autoConnect: true,
-        requestMTU: 100,
+        autoConnect: true, // Tự động kết nối
+        requestMTU: 100, // Yêu cầu MTU
       };
-      const deviceConnection = await device.connect(connectOptions);
-      if (!deviceConnection.name) {
-        return;
+      const deviceConnection = await device.connect(connectOptions); // Kết nối đến thiết bị
+      if (!deviceConnection.name) { // Kiểm tra nếu thiết bị không có tên
+        return; // Thoát hàm
       }
-      setConnectedDevice(deviceConnection);
-      stopScanning();
-      await deviceConnection.discoverAllServicesAndCharacteristics();
-      BLEManager.stopDeviceScan();
-    } catch (e) {}
+      setConnectedDevice(deviceConnection); // Cập nhật thiết bị đang kết nối
+      stopScanning(); // Dừng quét
+      await deviceConnection.discoverAllServicesAndCharacteristics(); // Khám phá tất cả dịch vụ và đặc tính
+      BLEManager.stopDeviceScan(); // Dừng quét thiết bị
+    } catch (e) {} // Bỏ qua lỗi
   };
 
+  // Hàm dừng quét thiết bị
   const stopScanning = async () => {
     try {
-      BLEManager.stopDeviceScan();
-      setIsScanning(false);
-    } catch (error) {}
+      BLEManager.stopDeviceScan(); // Dừng quét thiết bị
+      setIsScanning(false); // Đặt trạng thái quét là false
+    } catch (error) {} // Bỏ qua lỗi
   };
 
+  // Hàm ngắt kết nối thiết bị
   const disconnectToDevice = async (device: Device) => {
     try {
-      if (device && connectedDevice) {
-        const deviceConnection = await BLEManager.isDeviceConnected(
-          connectedDevice.id,
-        );
-        if (deviceConnection) {
-          if (monitoringID) {
-            monitoringID.remove();
-            setMonitoringID(null);
-            setDataCharacteristics([]);
+      if (device && connectedDevice) { // Kiểm tra nếu có thiết bị và thiết bị đang kết nối
+        const deviceConnection = await BLEManager.isDeviceConnected(connectedDevice.id); // Kiểm tra kết nối
+        if (deviceConnection) { // Nếu thiết bị đang kết nối
+          if (monitoringID) { // Nếu có ID theo dõi
+            monitoringID.remove(); // Xóa theo dõi
+            setMonitoringID(null); // Đặt ID theo dõi là null
+            setDataCharacteristics([]); // Xóa dữ liệu cảm biến
           }
-          await BLEManager.cancelDeviceConnection(device.id);
-          setConnectedDevice(null);
-          scanForDevices();
+          await BLEManager.cancelDeviceConnection(device.id); // Hủy kết nối thiết bị
+          setConnectedDevice(null); // Đặt thiết bị đang kết nối là null
+          scanForDevices(); // Bắt đầu quét thiết bị
         }
       }
-    } catch (e) {}
+    } catch (e) {} // Bỏ qua lỗi
   };
 
+  // Hàm khám phá dịch vụ của thiết bị
   const discoverDeviceServices = useCallback(async () => {
-    if (!connectedDevice) {
-      throw new Error('No device connected');
+    if (!connectedDevice) { // Kiểm tra nếu không có thiết bị kết nối
+      throw new Error('No device connected'); // Ném lỗi
     }
-    await connectedDevice.discoverAllServicesAndCharacteristics();
+    await connectedDevice.discoverAllServicesAndCharacteristics(); // Khám phá tất cả dịch vụ và đặc tính
   }, [connectedDevice]);
 
+  // Hàm lấy dịch vụ của thiết bị
   const getDeviceServices = useCallback(async () => {
     try {
-      if (!connectedDevice) {
-        throw new Error('No device connected');
+      if (!connectedDevice) { // Kiểm tra nếu không có thiết bị kết nối
+        throw new Error('No device connected'); // Ném lỗi
       }
-      await discoverDeviceServices(); // Make sure services are discovered before getting them.
-      const services = await connectedDevice.services();
-      setConnectedDeviceService(services);
+      await discoverDeviceServices(); // Khám phá dịch vụ
+      const services = await connectedDevice.services(); // Lấy dịch vụ
+      setConnectedDeviceService(services); // Cập nhật dịch vụ của thiết bị
     } catch (error) {
-      throw new Error('No device connected');
+      throw new Error('No device connected'); // Ném lỗi
     }
   }, [connectedDevice, discoverDeviceServices]);
 
+  // Hàm lấy đặc tính của dịch vụ cuối cùng
   const getLastDeviceServicesCharacteristics = useCallback(
     async (serviceUUID: string) => {
       try {
-        if (!connectedDeviceService || !connectedDevice) {
-          throw new Error('No device connected');
+        if (!connectedDeviceService || !connectedDevice) { // Kiểm tra nếu không có dịch vụ hoặc thiết bị kết nối
+          throw new Error('No device connected'); // Ném lỗi
         }
-        await getDeviceServices();
-        const characteristics = await connectedDevice.characteristicsForService(
-          serviceUUID,
-        );
-        setLastServiceCharacteristics(characteristics);
+        await getDeviceServices(); // Lấy dịch vụ
+        const characteristics = await connectedDevice.characteristicsForService(serviceUUID); // Lấy đặc tính
+        setLastServiceCharacteristics(characteristics); // Cập nhật đặc tính của dịch vụ cuối cùng
       } catch (error) {
-        throw new Error('No device connected');
+        throw new Error('No device connected'); // Ném lỗi
       }
     },
     [connectedDevice, discoverDeviceServices, getDeviceServices],
   );
 
+  // Hàm theo dõi dữ liệu
   const monitoringData = useCallback(async () => {
     try {
-      if (!connectedDevice || !connectedDeviceService) {
-        throw new Error('No device connected');
+      if (!connectedDevice || !connectedDeviceService) { // Kiểm tra nếu không có thiết bị hoặc dịch vụ kết nối
+        throw new Error('No device connected'); // Ném lỗi
       }
-      console.log('Monitoring data');
-      if (monitoringID) {
-        monitoringID.remove();
-        setMonitoringID(null);
+      console.log('Monitoring data'); // Log thông báo theo dõi dữ liệu
+      if (monitoringID) { // Nếu có ID theo dõi
+        monitoringID.remove(); // Xóa theo dõi
+        setMonitoringID(null); // Đặt ID theo dõi là null
       }
-      setMonitoringID(
+      setMonitoringID( // Đặt ID theo dõi mới
         connectedDevice.monitorCharacteristicForService(
-          connectedDeviceService[connectedDeviceService.length - 1].uuid,
-          lastServiceCharacteristics[0].uuid,
+          connectedDeviceService[connectedDeviceService.length - 1].uuid, // UUID dịch vụ
+          lastServiceCharacteristics[0].uuid, // UUID đặc tính
           (error: BleError | null, characteristic: Characteristic | null) => {
-            if (error) {
-              console.log(`Error monitoring characteristic: ${error.message}`);
-              return;
-            } else if (!characteristic || !characteristic.value) {
-              console.log('Received empty characteristic value');
-              return;
+            if (error) { // Kiểm tra lỗi
+              console.log(`Error monitoring characteristic: ${error.message}`); // Log lỗi
+              return; // Thoát hàm
+            } else if (!characteristic || !characteristic.value) { // Kiểm tra nếu không có giá trị đặc tính
+              console.log('Received empty characteristic value'); // Log thông báo không có giá trị
+              return; // Thoát hàm
             }
-            const rawData = characteristic.value; // replace atob with your base64 decoding function if needed
-            const realData = atob(rawData).split('/');
-            console.log(`real data ${realData}`);
-            const data: DataCharacteristicsType = {
-              MAC: realData[0],
-              spo2: realData[1],
-              heart_rate: realData[2],
-              temperature: realData[3],
-              fall: realData[4],
-              diastolic: realData[5],
-              systolic: realData[6],
-              battery_percent: realData[7],
-              time: new Date().getTime(),
+            const rawData = characteristic.value; // Lấy giá trị thô
+            const realData = atob(rawData).split('/'); // Giải mã giá trị
+            console.log(`real data ${realData}`); // Log dữ liệu thực
+            const data: DataCharacteristicsType = { // Tạo đối tượng dữ liệu cảm biến
+              MAC: realData[0], // Địa chỉ MAC
+              spo2: realData[1], // Mức SpO2
+              heart_rate: realData[2], // Nhịp tim
+              temperature: realData[3], // Nhiệt độ
+              fall: realData[4], // Tình trạng ngã
+              battery_percent: realData[5], // Phần trăm pin
+              time: new Date().getTime(), // Thời gian
             };
-            setUpdateTime(new Date().getTime());
-            if (data.MAC) {
+            setUpdateTime(new Date().getTime()); // Cập nhật thời gian
+            if (data.MAC) { // Kiểm tra nếu có địa chỉ MAC
               setDataCharacteristics(prevState => {
                 const index = prevState.findIndex(item => {
-                  return data.MAC === item.MAC;
+                  return data.MAC === item.MAC; // Tìm chỉ số của dữ liệu
                 });
-                if (index < 0) {
-                  return [...prevState, data];
+                if (index < 0) { // Nếu không tìm thấy
+                  return [...prevState, data]; // Thêm dữ liệu mới
                 }
-                prevState[index] = data;
-                return [...prevState];
+                prevState[index] = data; // Cập nhật dữ liệu cũ
+                return [...prevState]; // Trả về danh sách dữ liệu đã cập nhật
               });
             }
           },
         ),
       );
     } catch (error) {
-      throw new Error('No device connected');
+      throw new Error('No device connected'); // Ném lỗi
     }
   }, [
     connectedDevice,
@@ -271,140 +272,151 @@ export default function useBLE(): BluetoothLowEnergyApi {
     lastServiceCharacteristics,
   ]);
 
+  // Hàm gửi lệnh đến thiết bị
   const sendCommand = async (command: string, index: number) => {
     try {
       if (
         monitoringID &&
         connectedDevice &&
         connectedDeviceService &&
-        lastServiceCharacteristics
+        lastServiceCharacteristics // Kiểm tra nếu có ID theo dõi và thiết bị kết nối
       ) {
         const res = await BLEManager.writeCharacteristicWithResponseForDevice(
           connectedDevice.id,
-          connectedDeviceService[connectedDeviceService.length - 1].uuid,
-          lastServiceCharacteristics[0].uuid,
-          btoa(command),
+          connectedDeviceService[connectedDeviceService.length - 1].uuid, // UUID dịch vụ
+          lastServiceCharacteristics[0].uuid, // UUID đặc tính
+          btoa(command), // Mã hóa lệnh
         );
-        if (res) {
+        if (res) { // Nếu gửi lệnh thành công
           setTimeout(() => {
-            let arrData = dataCharacteristics;
-            arrData.splice(index, 1);
-            setDataCharacteristics(arrData);
-          }, 1000);
+            let arrData = dataCharacteristics; // Lấy dữ liệu cảm biến
+            arrData.splice(index, 1); // Xóa dữ liệu tại chỉ số index
+            setDataCharacteristics(arrData); // Cập nhật dữ liệu cảm biến
+          }, 1000); // Đợi 1 giây trước khi xóa
         }
       } else {
-        throw new Error('No device connected or monitoring not started');
+        throw new Error('No device connected or monitoring not started'); // Ném lỗi nếu không có thiết bị kết nối hoặc chưa bắt đầu theo dõi
       }
     } catch (error) {
-      console.log('ERROR IN COMMAND', error);
+      console.log('ERROR IN COMMAND', error); // Log lỗi khi gửi lệnh
     }
   };
 
+  // Hook useEffect để lấy dịch vụ khi thiết bị kết nối
   useEffect(() => {
-    console.log('Get service');
+    console.log('Get service'); // Log thông báo lấy dịch vụ
     if (!connectedDevice || !discoverDeviceServices || !getDeviceServices) {
-      return;
+      return; // Thoát hàm nếu không có thiết bị hoặc dịch vụ
     }
     const getService = async () => {
-      await getDeviceServices();
+      await getDeviceServices(); // Lấy dịch vụ
     };
-    getService();
+    getService(); // Gọi hàm lấy dịch vụ
   }, [connectedDevice, discoverDeviceServices, getDeviceServices]);
 
+  // Hook useEffect để lấy đặc tính của dịch vụ cuối cùng
   useEffect(() => {
     if (!connectedDevice || !connectedDeviceService.length) {
-      return;
+      return; // Thoát hàm nếu không có thiết bị hoặc dịch vụ
     }
     const getLastChars = async () => {
       await getLastDeviceServicesCharacteristics(
-        connectedDeviceService[connectedDeviceService.length - 1].uuid,
+        connectedDeviceService[connectedDeviceService.length - 1].uuid, // UUID dịch vụ cuối cùng
       );
     };
-    getLastChars();
+    getLastChars(); // Gọi hàm lấy đặc tính
   }, [connectedDevice, connectedDeviceService.length]);
 
+  // Hook useEffect để bắt đầu theo dõi dữ liệu
   useEffect(() => {
     if (
       !connectedDevice ||
       !connectedDeviceService ||
-      !lastServiceCharacteristics
+      !lastServiceCharacteristics // Kiểm tra nếu không có thiết bị, dịch vụ hoặc đặc tính
     ) {
-      return;
+      return; // Thoát hàm
     }
     const startMonitoring = async () => {
-      await monitoringData();
+      await monitoringData(); // Bắt đầu theo dõi dữ liệu
     };
-    startMonitoring();
+    startMonitoring(); // Gọi hàm bắt đầu theo dõi
   }, [connectedDevice, lastServiceCharacteristics]);
 
+  // Hook useEffect để xử lý ngắt kết nối thiết bị
   useEffect(() => {
     if (!connectedDevice) {
-      return;
+      return; // Thoát hàm nếu không có thiết bị kết nối
     }
     BLEManager.onDeviceDisconnected(connectedDevice.id, () => {
-      setConnectedDevice(null);
-      setAllDevices([]);
-      scanForDevices();
+      setConnectedDevice(null); // Đặt thiết bị kết nối là null
+      setAllDevices([]); // Xóa danh sách thiết bị
+      scanForDevices(); // Bắt đầu quét thiết bị
     });
   }, [connectedDevice]);
 
+  // Hàm xóa dữ liệu cũ
   const removeOldData = (resData: DataCharacteristicsType[]) => {
-    console.log('Clean up old data', resData);
+    console.log('Clean up old data', resData); // Log thông báo xóa dữ liệu cũ
     if (resData.length) {
-      console.log('Remove old data');
+      console.log('Remove old data'); // Log thông báo xóa dữ liệu
       const filteredData = resData.filter(item => {
         if (item.time) {
-          return new Date().getTime() - 60000 < item.time;
+          return new Date().getTime() - 60000 < item.time; // Giữ lại dữ liệu trong 1 phút
         }
-        return false;
+        return false; // Nếu không có thời gian, xóa dữ liệu
       });
-      return filteredData;
+      return filteredData; // Trả về dữ liệu đã lọc
     }
-    return resData;
+    return resData; // Trả về dữ liệu gốc nếu không có dữ liệu
   };
+
+  // Hàm xóa dữ liệu quét cũ
   const removeOldScan = (resData: AllDeviceType[]) => {
     if (resData.length) {
       const filteredData = resData.filter(item => {
         if (item.time) {
-          return new Date().getTime() - 5000 < item.time;
+          return new Date().getTime() - 5000 < item.time; // Giữ lại dữ liệu trong 5 giây
         }
-        return false;
+        return false; // Nếu không có thời gian, xóa dữ liệu
       });
-      return filteredData;
+      return filteredData; // Trả về dữ liệu đã lọc
     }
-    return resData;
+    return resData; // Trả về dữ liệu gốc nếu không có dữ liệu
   };
 
+  // Hàm xóa thiết bị proxy cũ
   const removeProxy = (resData: number) => {
-    if (resData < new Date().getTime() - 40000) {
+    if (resData < new Date().getTime() - 40000) { // Kiểm tra nếu thiết bị đã cũ hơn 40 giây
       if (connectedDevice) {
-        disconnectToDevice(connectedDevice);
+        disconnectToDevice(connectedDevice); // Ngắt kết nối thiết bị
       }
-      return new Date().getTime();
+      return new Date().getTime(); // Trả về thời gian hiện tại
     }
-    return resData;
+    return resData; // Trả về dữ liệu gốc nếu không cần xóa
   };
 
+  // Hook useEffect để cập nhật dữ liệu cũ
   useEffect(() => {
     setInterval(() => {
-      setDataCharacteristics(prevState => removeOldData(prevState));
-      setAllDevices(prevState => removeOldScan(prevState));
-      setUpdateTime(prevState => removeProxy(prevState));
-    }, 1000);
+      setDataCharacteristics(prevState => removeOldData(prevState)); // Cập nhật dữ liệu cảm biến
+      setAllDevices(prevState => removeOldScan(prevState)); // Cập nhật danh sách thiết bị
+      setUpdateTime(prevState => removeProxy(prevState)); // Cập nhật thời gian
+    }, 1000); // Cập nhật mỗi giây
   }, []);
 
+  // Trả về các API cho Bluetooth Low Energy
   return {
-    isScanning,
-    requestPermissions,
-    scanForDevices,
-    stopScanning,
-    allDevices,
-    connectToDevice,
-    connectedDevice,
-    disconnectToDevice,
-    connectedDeviceService,
-    lastServiceCharacteristics,
-    dataCharacteristics,
-    sendCommand,
+    isScanning, // Trạng thái quét
+    requestPermissions, // Hàm yêu cầu quyền truy cập
+    scanForDevices, // Hàm bắt đầu quét
+    stopScanning, // Hàm dừng quét
+    allDevices, // Danh sách tất cả thiết bị
+    connectToDevice, // Hàm kết nối đến thiết bị
+    connectedDevice, // Thiết bị đang kết nối
+    disconnectToDevice, // Hàm ngắt kết nối
+    connectedDeviceService, // Dịch vụ của thiết bị đang kết nối
+    lastServiceCharacteristics, // Đặc tính của dịch vụ cuối cùng
+    dataCharacteristics, // Dữ liệu cảm biến
+    sendCommand, // Hàm gửi lệnh
   };
 }
